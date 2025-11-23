@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Drawing;
+using UnityEditor.ShaderGraph;
 using UnityEngine;
 
 public class PlayerPhysics : MonoBehaviour
@@ -9,27 +11,21 @@ public class PlayerPhysics : MonoBehaviour
     public LayerMask layerMask;
     public Vector3 verticalVelocity => Vector3.Project(RB.linearVelocity, RB.transform.up);
     public Vector3 horizontalVelocity => Vector3.ProjectOnPlane(RB.linearVelocity, RB.transform.up);
-    Vector3 normal;
-    Vector3 point;
     public float gravity;
-    public float jumpForce;
+    
     public float groundDistance;
     public float speed;
     public float verticalSpeed => Vector3.Dot(RB.linearVelocity, RB.transform.up);
-    bool ground;
+    
     //Update
-    void Update()
-    {
-        if (Input.GetButtonDown("Jump"))
-        Jump();
-    }
+    
 
     //Fixed Update
     void FixedUpdate()
     {
         Move();
         
-    if (!ground)
+    if (!groundInfo.ground)
         Gravity();
     
     
@@ -58,22 +54,30 @@ public class PlayerPhysics : MonoBehaviour
         RB.linearVelocity -= Vector3.up * gravity * Time.deltaTime; 
     }
 
-    //Jump
-    void Jump()
+    public struct GroundInfo
     {
-        if (!ground) return;
-        RB.linearVelocity = (Vector3.up * jumpForce) + horizontalVelocity;
-
+        public Vector3 point;
+        public Vector3 normal;
+        public bool ground;
     }
+
+    [HideInInspector] public GroundInfo groundInfo;
 
     //Ground Detection
     void Ground()
     {
         float maxDistance = Mathf.Max(RB.centerOfMass.y, 0) + (RB.sleepThreshold * Time.fixedDeltaTime);
-        if (ground && verticalSpeed < RB.sleepThreshold) maxDistance += groundDistance;
-        ground = Physics.Raycast(RB.worldCenterOfMass, -RB.transform.up, out RaycastHit hit, groundDistance, layerMask, QueryTriggerInteraction.Ignore);
-        point = ground ? hit.point : RB.transform.position;
-        normal = ground ? hit.normal : Vector3.up;
+        if (groundInfo.ground && verticalSpeed < RB.sleepThreshold) maxDistance += groundDistance;
+        groundInfo.ground = Physics.Raycast(RB.worldCenterOfMass, -RB.transform.up, out RaycastHit hit, groundDistance, layerMask, QueryTriggerInteraction.Ignore);
+        groundInfo.point = groundInfo.ground ? hit.point : RB.transform.position;
+        groundInfo.normal = groundInfo.ground ? hit.normal : Vector3.up;
+
+        groundInfo = new PlayerPhysics.GroundInfo()
+        {
+            point = groundInfo.point,
+            normal = groundInfo.normal,
+            ground = groundInfo.ground
+        };
     }
 
     //Movement
@@ -86,8 +90,8 @@ public class PlayerPhysics : MonoBehaviour
     //Snap to Ground
     void Snap()
     {
-        transform.up = normal;
-        Vector3 goal = point;
+        transform.up = groundInfo.normal;
+        Vector3 goal = groundInfo.point;
         Vector3 difference = goal - RB.transform.position;
 
     if (RB.SweepTest(difference, out _, difference.magnitude, QueryTriggerInteraction.Ignore)) return;
