@@ -8,6 +8,9 @@ public class PlayerMovement : MonoBehaviour
     public float acceleration = 20f;
     public float deceleration = 25f;
     public float rotationSpeed = 10f;
+    public float jumpForce;
+    private bool hasJumped = false;
+
 
     [Header("Camera")]
     public Transform cameraTarget;
@@ -28,6 +31,12 @@ public class PlayerMovement : MonoBehaviour
     private float currentSpeed = 0f;
     private bool grounded;
 
+    // Sound Effects
+    public AudioSource jumpSource;
+    public AudioSource runSource;
+    public AudioClip jumpSound;
+    public AudioClip runningSound;
+
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -44,12 +53,23 @@ public class PlayerMovement : MonoBehaviour
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
+        if (Input.GetButtonDown("Jump"))
+        Jump();
+
         // Ground check
         Vector3 rayOrigin = transform.position + Vector3.up * 0.1f; // offset for pivot
-        grounded = Physics.Raycast(rayOrigin, Vector3.down, playerHeight * 0.6f, whatIsGround);
+        grounded = Physics.Raycast(rayOrigin, Vector3.down, playerHeight * 0.5f + 0.1f, whatIsGround);
+
+
 
         // Apply damping
         rb.linearDamping = grounded ? groundDamping : 0f;
+       
+        if (grounded)
+        {
+            hasJumped = false; // Reset jump when touching the ground
+        }
+
 
         // Update Animator
         UpdateAnimator();
@@ -61,54 +81,83 @@ public class PlayerMovement : MonoBehaviour
     }
 
     private void MovePlayer()
+{
+    // Camera-relative directions
+    Vector3 camForward = cameraTarget.forward;
+    Vector3 camRight = cameraTarget.right;
+    camForward.y = 0f;
+    camRight.y = 0f;
+    camForward.Normalize();
+    camRight.Normalize();
+
+    Vector3 inputDir = camForward * verticalInput + camRight * horizontalInput;
+    float inputMagnitude = Mathf.Clamp01(inputDir.magnitude);
+
+    // Smooth acceleration / deceleration
+    if (inputMagnitude > 0.1f)
+        currentSpeed += acceleration * Time.fixedDeltaTime;
+    else
+        currentSpeed -= deceleration * Time.fixedDeltaTime;
+
+    currentSpeed = Mathf.Clamp(currentSpeed, 0f, maxSpeed);
+
+    // Apply movement, keep vertical velocity intact
+    Vector3 moveVel = inputDir.normalized * currentSpeed;
+    rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
+
+    // Rotate child model on Z axis only (discrete angles)
+    if (inputMagnitude > 0.01f && model != null)
     {
-        // Camera-relative directions
-        Vector3 camForward = cameraTarget.forward;
-        Vector3 camRight = cameraTarget.right;
-        camForward.y = 0f;
-        camRight.y = 0f;
-        camForward.Normalize();
-        camRight.Normalize();
+        float yRotation = 0f;
 
-        Vector3 inputDir = camForward * verticalInput + camRight * horizontalInput;
-        float inputMagnitude = Mathf.Clamp01(inputDir.magnitude);
-
-        // Smooth acceleration / deceleration
-        if (inputMagnitude > 0.1f)
-            currentSpeed += acceleration * Time.fixedDeltaTime;
-        else
-            currentSpeed -= deceleration * Time.fixedDeltaTime;
-
-        currentSpeed = Mathf.Clamp(currentSpeed, 0f, maxSpeed);
-
-        // Apply movement, keep vertical velocity intact
-        Vector3 moveVel = inputDir.normalized * currentSpeed;
-        rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
-
-        // Rotate child model on Z axis only (discrete angles)
-        if (inputMagnitude > 0.01f && model != null)
+        // Determine dominant input
+        if (Mathf.Abs(verticalInput) > Mathf.Abs(horizontalInput))
         {
-            float yRotation = 0f;
+            yRotation = verticalInput > 0 ? 0f : 180f;
+        }
+        else
+        {
+            yRotation = horizontalInput > 0 ? 90f : -90f;
+        }
 
-    // Determine dominant input
-    if (Mathf.Abs(verticalInput) > Mathf.Abs(horizontalInput))
+        Vector3 currentEuler = model.localEulerAngles;
+        Vector3 targetEuler = new Vector3(currentEuler.x, yRotation, currentEuler.z);
+
+        model.localRotation =
+            Quaternion.Lerp(model.localRotation, Quaternion.Euler(targetEuler),
+            rotationSpeed * Time.fixedDeltaTime);
+    }
+
+    // --- RUNNING SOUND EFFECT ---
+    bool isMoving = inputMagnitude > 0.1f;
+    bool isOnGround = grounded;
+
+    if (isMoving && isOnGround)
     {
-        // Forward/back
-        yRotation = verticalInput > 0 ? 0f : 180f;
+        if (!runSource.isPlaying)
+            runSource.PlayOneShot(runningSound);
     }
     else
     {
-        // Left/right
-        yRotation = horizontalInput > 0 ? 90f : -90f;
+        if (runSource.isPlaying)
+            runSource.Stop();
     }
+}
 
-    // Preserve X rotation (90°) and Z rotation
-    Vector3 currentEuler = model.localEulerAngles;
-    Vector3 targetEuler = new Vector3(currentEuler.x, yRotation, currentEuler.z);
 
-    // Smooth rotation
-    model.localRotation = Quaternion.Lerp(model.localRotation, Quaternion.Euler(targetEuler), rotationSpeed * Time.fixedDeltaTime);
-        }
+
+    void Jump()
+    {
+        if (!grounded || hasJumped)
+        return;
+        Vector3 newVelocity = rb.linearVelocity;
+        newVelocity.y = jumpForce;
+        rb.linearVelocity = newVelocity;
+        hasJumped = true;
+        anim.SetTrigger("Jump");
+       if (jumpSource)
+        jumpSource.PlayOneShot(jumpSound);
+
     }
 
     private void UpdateAnimator()
@@ -121,5 +170,7 @@ public class PlayerMovement : MonoBehaviour
         // Speed for Blend Tree (only while grounded)
         float speedPercent = grounded ? currentSpeed / maxSpeed : 0f;
         anim.SetFloat("Speed", Mathf.Lerp(anim.GetFloat("Speed"), speedPercent, Time.deltaTime * 5f));
+        anim.SetFloat("VerticalVelocity", rb.linearVelocity.y);
+
     }
 }
