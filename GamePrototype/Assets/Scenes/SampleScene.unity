@@ -229,6 +229,7 @@ MonoBehaviour:
     m_Bits: 8
   groundDamping: 5
   anim: {fileID: 1672616301}
+  model: {fileID: 1672616300}
 --- !u!95 &259445424
 Animator:
   serializedVersion: 7
@@ -312,7 +313,7 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 75
+  field of view: 90
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -610,7 +611,7 @@ MonoBehaviour:
     LookAtTarget: {fileID: 0}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 75
+    FieldOfView: 90
     OrthographicSize: 5
     NearClipPlane: 0.3
     FarClipPlane: 1000
@@ -1025,11 +1026,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: e911ace9ad7f39d4fa40a50be23af409, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: e911ace9ad7f39d4fa40a50be23af409, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: e911ace9ad7f39d4fa40a50be23af409, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
