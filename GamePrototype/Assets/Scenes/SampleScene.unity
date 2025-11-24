@@ -225,6 +225,7 @@ MonoBehaviour:
   deceleration: 30
   rotationSpeed: 10
   jumpForce: 15
+  maxSlopeAngle: 45
   cameraTarget: {fileID: 419913785}
   playerHeight: 2
   whatIsGround:
@@ -1487,8 +1488,8 @@ Transform:
   m_GameObject: {fileID: 2051069657}
   serializedVersion: 2
   m_LocalRotation: {x: -0.26011983, y: -0, z: -0, w: 0.96557635}
-  m_LocalPosition: {x: 3.15, y: -0.39, z: 8.526808}
-  m_LocalScale: {x: 6.146, y: 1.7332, z: 5.8363}
+  m_LocalPosition: {x: 3.15, y: 3.159, z: 14.6358}
+  m_LocalScale: {x: 6.146, y: 1.7332, z: 19.966564}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}

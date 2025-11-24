@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerMovement : MonoBehaviour
@@ -10,6 +11,8 @@ public class PlayerMovement : MonoBehaviour
     public float rotationSpeed = 10f;
     public float jumpForce;
     private bool hasJumped = false;
+    public float maxSlopeAngle;
+    private RaycastHit slopeHit;
 
 
     [Header("Camera")]
@@ -82,7 +85,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void MovePlayer()
 {
-    // Camera-relative directions
+    // --- Camera-relative input ---
     Vector3 camForward = cameraTarget.forward;
     Vector3 camRight = cameraTarget.right;
     camForward.y = 0f;
@@ -93,7 +96,7 @@ public class PlayerMovement : MonoBehaviour
     Vector3 inputDir = camForward * verticalInput + camRight * horizontalInput;
     float inputMagnitude = Mathf.Clamp01(inputDir.magnitude);
 
-    // Smooth acceleration / deceleration
+    // --- Smooth acceleration/deceleration ---
     if (inputMagnitude > 0.1f)
         currentSpeed += acceleration * Time.fixedDeltaTime;
     else
@@ -101,34 +104,52 @@ public class PlayerMovement : MonoBehaviour
 
     currentSpeed = Mathf.Clamp(currentSpeed, 0f, maxSpeed);
 
-    // Apply movement, keep vertical velocity intact
-    Vector3 moveVel = inputDir.normalized * currentSpeed;
-    rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
+    // --- Movement along slope or flat ---
+    Vector3 moveVel;
 
-    // Rotate child model on Z axis only (discrete angles)
+    if (OnSlope() && grounded)
+    {
+        // Project input along slope plane
+        Vector3 slopeDir = Vector3.ProjectOnPlane(inputDir, slopeHit.normal).normalized;
+        moveVel = slopeDir * currentSpeed;
+
+        // Preserve vertical velocity affected by gravity
+        rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
+    }
+    else
+    {
+        // Flat ground or in air
+        moveVel = inputDir.normalized * currentSpeed;
+        rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
+    }
+
+    // --- Clamp horizontal speed to avoid flying off ---
+    float maxSlopeSpeed = maxSpeed * 1.5f;
+    Vector3 flatVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+    if (flatVel.magnitude > maxSlopeSpeed)
+    {
+        Vector3 clamped = flatVel.normalized * maxSlopeSpeed;
+        rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.z);
+    }
+
+    // --- Model rotation (Z-axis discrete angles) ---
     if (inputMagnitude > 0.01f && model != null)
     {
         float yRotation = 0f;
 
-        // Determine dominant input
         if (Mathf.Abs(verticalInput) > Mathf.Abs(horizontalInput))
-        {
             yRotation = verticalInput > 0 ? 0f : 180f;
-        }
         else
-        {
             yRotation = horizontalInput > 0 ? 90f : -90f;
-        }
 
         Vector3 currentEuler = model.localEulerAngles;
         Vector3 targetEuler = new Vector3(currentEuler.x, yRotation, currentEuler.z);
-
         model.localRotation =
             Quaternion.Lerp(model.localRotation, Quaternion.Euler(targetEuler),
             rotationSpeed * Time.fixedDeltaTime);
     }
 
-    // --- RUNNING SOUND EFFECT ---
+    // --- Running sound effect ---
     bool isMoving = inputMagnitude > 0.1f;
     bool isOnGround = grounded;
 
@@ -147,18 +168,40 @@ public class PlayerMovement : MonoBehaviour
 
 
     void Jump()
-    {
-        if (!grounded || hasJumped)
+{
+    if (!grounded || hasJumped)
         return;
-        Vector3 newVelocity = rb.linearVelocity;
-        newVelocity.y = jumpForce;
-        rb.linearVelocity = newVelocity;
-        hasJumped = true;
-        anim.SetTrigger("Jump");
-       if (jumpSource)
-        jumpSource.PlayOneShot(jumpSound);
 
+    hasJumped = true;
+
+    // Preserve horizontal velocity from slope
+    Vector3 jumpVel = rb.linearVelocity;
+    jumpVel.y = jumpForce; // set upward jump
+    rb.linearVelocity = jumpVel;
+
+    // Trigger animation & sound
+    anim.SetTrigger("Jump");
+    if (jumpSource)
+        jumpSource.PlayOneShot(jumpSound);
+}
+
+
+    private bool OnSlope()
+{
+    if (Physics.Raycast(transform.position, Vector3.down, out slopeHit, playerHeight * 0.5f + 0.3f))
+    {
+        float angle = Vector3.Angle(Vector3.up, slopeHit.normal);
+        return angle < maxSlopeAngle && angle > 0f;
     }
+    return false;
+}
+
+
+   private Vector3 GetSlopeMoveDirection(Vector3 inputDir)
+    {
+        return Vector3.ProjectOnPlane(inputDir, slopeHit.normal).normalized;
+    }
+
 
     private void UpdateAnimator()
     {
