@@ -4,21 +4,22 @@ using UnityEngine;
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float maxSpeed = 12f;           // Maximum horizontal speed
-    public float acceleration = 20f;       // How fast the player accelerates
-    public float deceleration = 25f;       // How fast the player slows down
-    public float rotationSpeed = 10f;      // How fast the player rotates toward movement
+    public float maxSpeed = 12f;
+    public float acceleration = 20f;
+    public float deceleration = 25f;
+    public float rotationSpeed = 10f;
 
     [Header("Camera")]
-    public Transform cameraTarget;         // Camera target for relative movement
+    public Transform cameraTarget;
 
     [Header("Ground Check")]
     public float playerHeight = 2f;
     public LayerMask whatIsGround;
-    public float groundDamping = 5f;       // linearDamping when grounded
+    public float groundDamping = 5f;
 
-    [Header("Animator")]
-    public Animator anim;                  // Animator on Sonic model (child)
+    [Header("Animator / Model")]
+    public Animator anim;          // Animator on child model
+    public Transform model;        // Sonic model (child of player)
 
     // Private variables
     private Rigidbody rb;
@@ -32,7 +33,7 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
 
-        // If Animator not assigned, try to find it in children
+        // Auto-find Animator if not assigned
         if (!anim)
             anim = GetComponentInChildren<Animator>();
     }
@@ -44,12 +45,13 @@ public class PlayerMovement : MonoBehaviour
         verticalInput = Input.GetAxisRaw("Vertical");
 
         // Ground check
-        grounded = Physics.Raycast(transform.position, Vector3.down, playerHeight * 0.5f + 0.2f, whatIsGround);
+        Vector3 rayOrigin = transform.position + Vector3.up * 0.1f; // offset for pivot
+        grounded = Physics.Raycast(rayOrigin, Vector3.down, playerHeight * 0.6f, whatIsGround);
 
-        // Apply damping when grounded
+        // Apply damping
         rb.linearDamping = grounded ? groundDamping : 0f;
 
-        // Update animation
+        // Update Animator
         UpdateAnimator();
     }
 
@@ -79,19 +81,33 @@ public class PlayerMovement : MonoBehaviour
 
         currentSpeed = Mathf.Clamp(currentSpeed, 0f, maxSpeed);
 
-        // Apply movement while keeping vertical velocity intact
+        // Apply movement, keep vertical velocity intact
         Vector3 moveVel = inputDir.normalized * currentSpeed;
         rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
 
-        // Rotate toward movement direction (always faces where moving)
-        if (inputMagnitude > 0.1f)
+        // Rotate child model on Z axis only (discrete angles)
+        if (inputMagnitude > 0.01f && model != null)
         {
-            Vector3 moveDirFlat = new Vector3(inputDir.x, 0f, inputDir.z).normalized;
-            if (moveDirFlat.sqrMagnitude > 0f)
-            {
-                Quaternion targetRot = Quaternion.LookRotation(moveDirFlat);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.fixedDeltaTime);
-            }
+            float yRotation = 0f;
+
+    // Determine dominant input
+    if (Mathf.Abs(verticalInput) > Mathf.Abs(horizontalInput))
+    {
+        // Forward/back
+        yRotation = verticalInput > 0 ? 0f : 180f;
+    }
+    else
+    {
+        // Left/right
+        yRotation = horizontalInput > 0 ? 90f : -90f;
+    }
+
+    // Preserve X rotation (90°) and Z rotation
+    Vector3 currentEuler = model.localEulerAngles;
+    Vector3 targetEuler = new Vector3(currentEuler.x, yRotation, currentEuler.z);
+
+    // Smooth rotation
+    model.localRotation = Quaternion.Lerp(model.localRotation, Quaternion.Euler(targetEuler), rotationSpeed * Time.fixedDeltaTime);
         }
     }
 
@@ -99,10 +115,11 @@ public class PlayerMovement : MonoBehaviour
     {
         if (!anim) return;
 
-        // Normalize speed for animation (0 → 1)
-        float speedPercent = currentSpeed / maxSpeed;
+        // Grounded parameter
+        anim.SetBool("isGrounded", grounded);
 
-        // Smoothly update Speed parameter for blend tree
+        // Speed for Blend Tree (only while grounded)
+        float speedPercent = grounded ? currentSpeed / maxSpeed : 0f;
         anim.SetFloat("Speed", Mathf.Lerp(anim.GetFloat("Speed"), speedPercent, Time.deltaTime * 5f));
     }
 }
