@@ -1,58 +1,45 @@
 using UnityEngine;
-
-[RequireComponent(typeof(Rigidbody))]
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Movement Settings")]
+    //Player Movement Variables
     public float maxSpeed = 12f;
     public float acceleration = 20f;
     public float deceleration = 25f;
     public float rotationSpeed = 10f;
     public float jumpForce;
-    private bool isMoving = false; // tracks if player is moving
-
-    public float attackSpeed;                // <-- used by JumpDash
+    private bool isMoving = false; 
     private bool hasJumped = false;
 
-    [Header("Slope Settings")]
+    //Slope Variables
     public float maxSlopeAngle;
     private RaycastHit slopeHit;
 
-    [Header("Boost Settings")]
-    public float boostSpeed = 40f;
-    public float airBoostSpeed = 25f;
-    public bool isBoosting = false;
-
-    [Header("Camera")]
+    //Cinemachine Camera
     public Transform cameraTarget;
 
-    [Header("Ground Check")]
+   //Ground Check
     public float playerHeight = 2f;
     public LayerMask whatIsGround;
     public float groundDamping = 5f;
 
-    [Header("Animator / Model")]
+    //Child Model + Animator
     public Animator anim;
     public Transform model;
 
-    // Private variables
+    //Rigidbody, Input Variables, Speed Variable and Grounded check
     private Rigidbody rb;
     private float horizontalInput;
     private float verticalInput;
     private float currentSpeed = 0f;
     private bool grounded;
 
-    // Jump dash state
-    private bool isJumpDashing = false;
-    private bool hasJumpDashed = false;
 
     // Sound Effects
     public AudioSource jumpSource;
     public AudioSource runSource;
     public AudioClip jumpSound;
     public AudioClip runningSound;
-    public AudioSource boostSource;
-    public AudioClip boostSound;
+    
 
     private void Start()
     {
@@ -65,48 +52,27 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        // read inputs
+        // Player inputs
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-        // ground check (center offset)
+        // Raycast to check if grounded
         Vector3 rayOrigin = transform.position + Vector3.up * 0.1f;
         grounded = Physics.Raycast(rayOrigin, Vector3.down, playerHeight * 0.5f + 0.1f, whatIsGround);
 
-        // reset states when grounded
+        // Resets jump if Sonic is on the ground
         if (grounded)
         {
             hasJumped = false;
-            hasJumpDashed = false;
-            isJumpDashing = false;
         }
 
-        // apply damping
+        // Slows Sonic down when on the ground and not moving to reach a halt
         rb.linearDamping = grounded ? groundDamping : 0f;
 
-        // FIRST JUMP: normal jump (only if grounded)
+        // Jump will only activate when grounded and space bar is pressed
         if (grounded && Input.GetButtonDown("Jump"))
         {
             Jump();
-            // do not return — allow other update logic after jumping
-        }
-        else
-        {
-            // SECOND JUMP while airborne -> JumpDash (only if not used yet)
-            if (!grounded && !hasJumpDashed && Input.GetButtonDown("Jump"))
-            {
-                JumpDash();
-                hasJumpDashed = true;
-            }
-        }
-
-        // Boost: only allow boosting if not currently jump-dashing
-        if (!isJumpDashing)
-        {
-            if (Input.GetKey(KeyCode.LeftShift))
-                StartBoost();
-            else
-                StopBoost();
         }
 
         UpdateAnimator();
@@ -119,7 +85,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void MovePlayer()
     {
-        // camera-relative basis
+        //Camera set up
         Vector3 camForward = cameraTarget.forward;
         Vector3 camRight = cameraTarget.right;
         camForward.y = 0f;
@@ -138,26 +104,9 @@ public class PlayerMovement : MonoBehaviour
 
         currentSpeed = Mathf.Clamp(currentSpeed, 0f, maxSpeed);
 
-        // BOOST overrides normal movement (priority)
-        if (isBoosting)
-        {
-            Vector3 forward = cameraTarget.forward;
-            forward.y = 0f;
-            forward.Normalize();
-            float useBoost = grounded ? boostSpeed : airBoostSpeed;
-            rb.linearVelocity = new Vector3(forward.x * useBoost, rb.linearVelocity.y, forward.z * useBoost);
-            return;
-        }
-
-       
-        if (isJumpDashing)
-        {
-            
-            return;
-        }
-
-        // normal movement 
+        // Player Movement 
         Vector3 moveVel;
+        //Slope Physics 
         if (OnSlope() && grounded)
         {
             Vector3 slopeDir = Vector3.ProjectOnPlane(inputDir, slopeHit.normal).normalized;
@@ -180,7 +129,7 @@ public class PlayerMovement : MonoBehaviour
             rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.z);
         }
 
-        // model rotation 
+        // Sonics model is set as a child of the parent object that has the script, Sonics model rotates with the player direction 
         if (inputMagnitude > 0.01f && model != null)
         {
             float yRotation = 0f;
@@ -194,7 +143,7 @@ public class PlayerMovement : MonoBehaviour
             model.localRotation = Quaternion.Lerp(model.localRotation, Quaternion.Euler(targetEuler), rotationSpeed * Time.fixedDeltaTime);
         }
 
-        // running SFX & movement flag
+        // Sound Effects for running
     isMoving = inputMagnitude > 0.1f;
 
     if (isMoving && grounded)
@@ -209,35 +158,7 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-
-    private void StartBoost()
-    {
-        if (!isMoving) return;
-        isBoosting = true;
-
-        if (isBoosting && !boostSource.isPlaying)
-        {
-            boostSource.clip = boostSound;
-            boostSource.loop = true;
-            boostSource.Play();   
-        }
-       
-    
-    }
-
-    private void StopBoost()
-    {
-     if (!isBoosting) return;
-     isBoosting = false;
-
-         if (boostSource && boostSource.isPlaying)
-         {
-            boostSource.Stop();
-         }
-    }
-
-
-    // normal single jump - preserves horizontal momentum
+    // Jump with momentum kept from ground speed + sound effects
     void Jump()
     {
         if (!grounded || hasJumped)
@@ -253,32 +174,7 @@ public class PlayerMovement : MonoBehaviour
         if (jumpSource) jumpSource.PlayOneShot(jumpSound);
     }
 
-    // jump dash using attackSpeed (sets horizontal velocity once)
-    void JumpDash()
-    {
-        if (isJumpDashing) return;
-
-        isJumpDashing = true;
-
-        // determine horizontal dash direction:
-        // prefer current horizontal momentum; if nearly zero, use camera forward
-        Vector3 horiz = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
-        if (horiz.magnitude < 0.1f)
-        {
-            Vector3 f = cameraTarget.forward;
-            f.y = 0f;
-            horiz = f.normalized;
-        }
-        else
-        {
-            horiz = horiz.normalized;
-        }
-
-        // apply dash: keep vertical velocity unchanged
-        rb.linearVelocity = new Vector3(horiz.x * attackSpeed, rb.linearVelocity.y, horiz.z * attackSpeed);
-        Debug.Log("JumpDash applied, attackSpeed = " + attackSpeed);
-    }
-
+    //Slope Check
     private bool OnSlope()
     {
         if (Physics.Raycast(transform.position, Vector3.down, out slopeHit, playerHeight * 0.5f + 0.3f))
@@ -289,11 +185,7 @@ public class PlayerMovement : MonoBehaviour
         return false;
     }
 
-    private Vector3 GetSlopeMoveDirection(Vector3 inputDir)
-    {
-        return Vector3.ProjectOnPlane(inputDir, slopeHit.normal).normalized;
-    }
-
+    //Animation set up
     private void UpdateAnimator()
     {
         if (!anim) return;
