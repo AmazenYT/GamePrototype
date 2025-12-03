@@ -1,7 +1,13 @@
+using Unity.VisualScripting;
 using UnityEngine;
 public class PlayerMovement : MonoBehaviour
 {
     //Player Movement Variables
+    private Rigidbody rb;
+    private float horizontalInput;
+    private float verticalInput;
+    private float currentSpeed = 0f;
+    private bool grounded;
     public float maxSpeed = 12f;
     public float acceleration = 20f;
     public float deceleration = 25f;
@@ -26,12 +32,9 @@ public class PlayerMovement : MonoBehaviour
     public Animator anim;
     public Transform model;
 
-    //Rigidbody, Input Variables, Speed Variable and Grounded check
-    private Rigidbody rb;
-    private float horizontalInput;
-    private float verticalInput;
-    private float currentSpeed = 0f;
-    private bool grounded;
+    //Ring Manager
+    public RingManager ringManager;
+    
 
 
     // Sound Effects
@@ -195,5 +198,15 @@ public class PlayerMovement : MonoBehaviour
 
         float speedPercent = grounded ? currentSpeed / maxSpeed : 0f;
         anim.SetFloat("Speed", Mathf.Lerp(anim.GetFloat("Speed"), speedPercent, Time.deltaTime * 5f));
+    }
+
+    //Ring Collecting
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.gameObject.CompareTag("Ring"))
+        {
+            ringManager.ringCount++;
+            Destroy(other.gameObject);
+        }
     }
 }
