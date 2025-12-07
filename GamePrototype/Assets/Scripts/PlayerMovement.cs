@@ -3,7 +3,7 @@ using UnityEngine;
 public class PlayerMovement : MonoBehaviour
 {
     //Player Movement Variables
-    private Rigidbody rb;
+    public Rigidbody rb;
     private float horizontalInput;
     private float verticalInput;
     private float currentSpeed = 0f;
@@ -42,6 +42,8 @@ public class PlayerMovement : MonoBehaviour
     public AudioSource runSource;
     public AudioClip jumpSound;
     public AudioClip runningSound;
+    public AudioClip ringSound;
+    public AudioSource ringSource;
     
 
     private void Start()
@@ -205,6 +207,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (other.gameObject.CompareTag("Ring"))
         {
+            ringSource.PlayOneShot(ringSound);
             ringManager.ringCount++;
             Destroy(other.gameObject);
         }
