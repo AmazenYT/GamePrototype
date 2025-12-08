@@ -99,10 +99,10 @@ public class PlayerMovement : MonoBehaviour
         camRight.Normalize();
 
         Vector3 inputDir = camForward * verticalInput + camRight * horizontalInput;
-        float inputMagnitude = Mathf.Clamp01(inputDir.magnitude);
+        float movementSpeed = Mathf.Clamp01(inputDir.magnitude);
 
         // acceleration / deceleration
-        if (inputMagnitude > 0.1f)
+        if (movementSpeed > 0.1f)
             currentSpeed += acceleration * Time.fixedDeltaTime;
         else
             currentSpeed -= deceleration * Time.fixedDeltaTime;
@@ -110,20 +110,20 @@ public class PlayerMovement : MonoBehaviour
         currentSpeed = Mathf.Clamp(currentSpeed, 0f, maxSpeed);
 
         // Player Movement 
-        Vector3 moveVel;
+        Vector3 moveVelocity;
         //Slope Physics 
         if (OnSlope() && grounded)
         {
             Vector3 slopeDir = Vector3.ProjectOnPlane(inputDir, slopeHit.normal).normalized;
-            moveVel = slopeDir * currentSpeed;
+            moveVelocity = slopeDir * currentSpeed;
         }
         else
         {
-            moveVel = inputDir.normalized * currentSpeed;
+            moveVelocity = inputDir.normalized * currentSpeed;
         }
 
         // apply horizontal velocity while preserving vertical
-        rb.linearVelocity = new Vector3(moveVel.x, rb.linearVelocity.y, moveVel.z);
+        rb.linearVelocity = new Vector3(moveVelocity.x, rb.linearVelocity.y, moveVelocity.z);
 
         // clamp horizontal speed
         float maxSlopeSpeed = maxSpeed * 1.5f;
@@ -135,7 +135,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         // Sonics model is set as a child of the parent object that has the script, Sonics model rotates with the player direction 
-        if (inputMagnitude > 0.01f && model != null)
+        if (movementSpeed > 0.01f && model != null)
         {
             float yRotation = 0f;
             if (Mathf.Abs(verticalInput) > Mathf.Abs(horizontalInput))
@@ -149,7 +149,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         // Sound Effects for running
-    isMoving = inputMagnitude > 0.1f;
+    isMoving = movementSpeed > 0.1f;
 
     if (isMoving && grounded)
     {
